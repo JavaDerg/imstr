@@ -357,7 +357,7 @@ fn test_compare_bytes() {
 }
 
 impl<'a, S: Data<String>> FindSubstring<&'a str> for ImString<S> {
-    fn find_substring(&self, sub_string: &'a str) -> std::option::Option<usize> {
+    fn find_substring(&self, sub_string: &'a str) -> core::option::Option<usize> {
         self.as_str().find_substring(sub_string)
     }
 }
