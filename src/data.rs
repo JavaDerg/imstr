@@ -115,7 +115,7 @@ impl<T> Data<T> for Arc<T> {
     }
 
     fn get(&self) -> &T {
-        &self
+        self
     }
 
     fn get_mut(&mut self) -> Option<&mut T> {
@@ -123,7 +123,7 @@ impl<T> Data<T> for Arc<T> {
     }
 
     fn ptr_eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self, &other)
+        Arc::ptr_eq(self, other)
     }
 }
 
@@ -133,7 +133,7 @@ impl<T> Data<T> for Rc<T> {
     }
 
     fn get(&self) -> &T {
-        &self
+        self
     }
 
     fn get_mut(&mut self) -> Option<&mut T> {
@@ -141,7 +141,7 @@ impl<T> Data<T> for Rc<T> {
     }
 
     fn ptr_eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self, &other)
+        Rc::ptr_eq(self, other)
     }
 }
 
@@ -151,7 +151,7 @@ impl<T: Clone> Data<T> for Box<T> {
     }
 
     fn get(&self) -> &T {
-        &self
+        self
     }
 
     fn get_mut(&mut self) -> Option<&mut T> {
@@ -159,7 +159,7 @@ impl<T: Clone> Data<T> for Box<T> {
     }
 
     fn ptr_eq(&self, other: &Self) -> bool {
-        core::ptr::eq(&self, &other)
+        core::ptr::eq(self, other)
     }
 }
 

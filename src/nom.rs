@@ -3,9 +3,10 @@ use crate::string::{CharIndices, Chars, ImString};
 use alloc::string::String;
 use core::str::FromStr;
 use nom::{
-    error::ErrorKind, AsBytes, Compare, CompareResult, Err, ExtendInto, FindSubstring, Input,
-    Needed, Offset, ParseTo,
+    AsBytes, Compare, CompareResult, ExtendInto, FindSubstring, Input, Needed, Offset, ParseTo,
 };
+#[cfg(test)]
+use nom::{Err, error::ErrorKind};
 
 /// Test that the specified function behaves the same regardless of whether the type is `&str` or
 /// `ImString`.

@@ -1,6 +1,6 @@
 //! Error types
 use alloc::fmt::{Display, Formatter, Result};
-pub use alloc::string::{FromUtf16Error, FromUtf8Error};
+pub use alloc::string::{FromUtf8Error, FromUtf16Error};
 
 /// A possible error when slicing a [`ImString`](crate::ImString).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,8 +46,8 @@ fn slice_error_traits() {
         // implements partial eq
         assert_eq!(error, new);
         // implements debug
-        alloc::format!("{error:?}");
+        let _ = alloc::format!("{error:?}");
         // implements display
-        alloc::format!("{new}");
+        let _ = alloc::format!("{new}");
     }
 }

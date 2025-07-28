@@ -21,10 +21,10 @@ use core::{
     },
     str::FromStr,
 };
-#[cfg(feature = "std")]
-use std::{ffi::OsStr, net::ToSocketAddrs, path::Path};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "std")]
+use std::{ffi::OsStr, net::ToSocketAddrs, path::Path};
 
 /// Threadsafe shared storage for string.
 pub type Threadsafe = Arc<String>;
@@ -136,7 +136,7 @@ impl<S: Data<String>> ImString<S> {
     /// ```
     pub fn from_std_string(string: String) -> Self {
         ImString {
-            offset: 0..string.as_bytes().len(),
+            offset: 0..string.len(),
             string: S::new(string),
         }
     }
@@ -183,7 +183,7 @@ impl<S: Data<String>> ImString<S> {
         }
 
         let string = self.string.get_mut().unwrap();
-        return &mut string[self.offset.clone()];
+        &mut string[self.offset.clone()]
     }
 
     unsafe fn try_modify_unchecked<F: FnOnce(&mut String)>(&mut self, f: F) -> bool {
@@ -235,11 +235,11 @@ impl<S: Data<String>> ImString<S> {
     /// assert_eq!(string, "hello");
     /// ```
     pub fn into_std_string(mut self) -> String {
-        if self.offset.start == 0 {
-            if let Some(string) = self.string.get_mut() {
-                string.truncate(self.offset.end);
-                return core::mem::take(string);
-            }
+        if self.offset.start == 0
+            && let Some(string) = self.string.get_mut()
+        {
+            string.truncate(self.offset.end);
+            return core::mem::take(string);
         }
 
         self.as_str().to_string()
@@ -390,7 +390,7 @@ impl<S: Data<String>> ImString<S> {
     /// assert_eq!(sparkle_heart, "💖");
     /// ```
     pub unsafe fn from_utf8_unchecked(vec: Vec<u8>) -> Self {
-        ImString::from_std_string(String::from_utf8_unchecked(vec))
+        unsafe { ImString::from_std_string(String::from_utf8_unchecked(vec)) }
     }
 
     /// Converts an [`ImString`] into a byte vector.
@@ -414,8 +414,8 @@ impl<S: Data<String>> ImString<S> {
 
     unsafe fn unchecked_append<F: FnOnce(String) -> String>(&mut self, f: F) {
         match self.string.get_mut() {
-            Some(mut string_ref) if self.offset.start == 0 => {
-                let mut string: String = core::mem::take(&mut string_ref);
+            Some(string_ref) if self.offset.start == 0 => {
+                let mut string: String = core::mem::take(string_ref);
                 string.truncate(self.offset.end);
                 *string_ref = f(string);
             }
@@ -425,7 +425,7 @@ impl<S: Data<String>> ImString<S> {
             }
         }
 
-        self.offset.end = self.string.get().as_bytes().len();
+        self.offset.end = self.string.get().len();
     }
 
     /// Inserts a character into this string at the specified index.
@@ -534,7 +534,7 @@ impl<S: Data<String>> ImString<S> {
     /// assert_eq!(string.pop(), None);
     /// ```
     pub fn pop(&mut self) -> Option<char> {
-        let last_char = self.as_str().chars().rev().next()?;
+        let last_char = self.as_str().chars().next_back()?;
         self.offset.end -= last_char.len_utf8();
         Some(last_char)
     }
@@ -1135,7 +1135,7 @@ impl<S: Data<String>> Eq for ImString<S> {}
 
 impl<S: Data<String>> PartialOrd<ImString<S>> for ImString<S> {
     fn partial_cmp(&self, other: &ImString<S>) -> Option<Ordering> {
-        self.as_str().partial_cmp(other.as_str())
+        Some(self.cmp(other))
     }
 }
 
@@ -1199,8 +1199,8 @@ impl<S: Data<String>> Index<RangeFrom<usize>> for ImString<S> {
 
 impl<S: Data<String>> Index<RangeFull> for ImString<S> {
     type Output = str;
-    fn index(&self, index: RangeFull) -> &str {
-        &self.as_str()[index]
+    fn index(&self, _index: RangeFull) -> &str {
+        self.as_str()
     }
 }
 
@@ -1601,7 +1601,7 @@ mod tests {
 
             // make sure both versions are identical
             assert_eq!(string_uppercase, &*string_slice);
-            drop(string_slice);
+            let _ = string_slice;
             assert_eq!(string, string_uppercase);
         }
 
