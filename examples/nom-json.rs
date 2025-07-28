@@ -4,12 +4,13 @@ use nom::{
     bytes::complete::{escaped, tag, take_while},
     character::complete::{alphanumeric1 as alphanumeric, char, one_of},
     combinator::{cut, map, opt, value},
-    error::{context, convert_error, ContextError, ParseError, VerboseError},
+    error::{context, ContextError, ParseError},
     multi::separated_list0,
     number::complete::double,
     sequence::{delimited, preceded, separated_pair, terminated},
-    Err, IResult,
+    Err, IResult, Parser,
 };
+use nom_language::error::{convert_error, VerboseError};
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq)]
@@ -77,7 +78,7 @@ fn test_string_inner() {
 fn boolean<E: ParseError<ImString>>(input: ImString) -> IResult<ImString, bool, E> {
     let parse_true = value(true, tag("true"));
     let parse_false = value(false, tag("false"));
-    alt((parse_true, parse_false))(input)
+    alt((parse_true, parse_false)).parse(input)
 }
 
 #[test]
@@ -90,7 +91,7 @@ fn test_boolean() {
 }
 
 fn null<E: ParseError<ImString>>(input: ImString) -> IResult<ImString, (), E> {
-    value((), tag("null"))(input)
+    value((), tag("null")).parse(input)
 }
 
 #[test]
@@ -108,7 +109,8 @@ fn string<E: ParseError<ImString> + ContextError<ImString>>(
     context(
         "string",
         preceded(char('\"'), cut(terminated(string_inner, char('\"')))),
-    )(i)
+    )
+    .parse(i)
 }
 
 fn array<E: ParseError<ImString> + ContextError<ImString>>(
@@ -123,7 +125,8 @@ fn array<E: ParseError<ImString> + ContextError<ImString>>(
                 preceded(sp, char(']')),
             )),
         ),
-    )(i)
+    )
+    .parse(i)
 }
 
 fn key_value<E: ParseError<ImString> + ContextError<ImString>>(
@@ -133,7 +136,8 @@ fn key_value<E: ParseError<ImString> + ContextError<ImString>>(
         preceded(sp, string),
         cut(preceded(sp, char(':'))),
         json_value,
-    )(i)
+    )
+    .parse(i)
 }
 
 fn hash<E: ParseError<ImString> + ContextError<ImString>>(
@@ -151,7 +155,8 @@ fn hash<E: ParseError<ImString> + ContextError<ImString>>(
                 preceded(sp, char('}')),
             )),
         ),
-    )(i)
+    )
+    .parse(i)
 }
 
 fn json_value<E: ParseError<ImString> + ContextError<ImString>>(
@@ -167,7 +172,8 @@ fn json_value<E: ParseError<ImString> + ContextError<ImString>>(
             map(boolean, JsonValue::Boolean),
             map(null, |_| JsonValue::Null),
         )),
-    )(i)
+    )
+    .parse(i)
 }
 
 fn root<E: ParseError<ImString> + ContextError<ImString>>(
@@ -181,7 +187,8 @@ fn root<E: ParseError<ImString> + ContextError<ImString>>(
             map(null, |_| JsonValue::Null),
         )),
         opt(sp),
-    )(i)
+    )
+    .parse(i)
 }
 
 fn main() {

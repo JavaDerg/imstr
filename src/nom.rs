@@ -1,11 +1,10 @@
 use crate::data::Data;
 use crate::string::{CharIndices, Chars, ImString};
-use core::ops::{Range, RangeFrom, RangeFull, RangeTo};
+use alloc::string::String;
 use core::str::FromStr;
 use nom::{
-    error::{ErrorKind, ParseError},
-    AsBytes, Compare, CompareResult, Err, ExtendInto, FindSubstring, IResult, InputIter,
-    InputLength, InputTake, InputTakeAtPosition, Needed, Offset, ParseTo, Slice,
+    error::ErrorKind, AsBytes, Compare, CompareResult, Err, ExtendInto, FindSubstring, Input,
+    Needed, Offset, ParseTo,
 };
 
 /// Test that the specified function behaves the same regardless of whether the type is `&str` or
@@ -33,89 +32,60 @@ macro_rules! test_equivalence {
     }};
 }
 
-impl<S: Data<String>> Slice<Range<usize>> for ImString<S> {
-    fn slice(&self, range: Range<usize>) -> Self {
-        self.slice(range)
-    }
-}
+impl<S: Data<String>> Input for ImString<S> {
+    type Item = char;
+    type Iter = Chars<S>;
+    type IterIndices = CharIndices<S>;
 
-#[test]
-fn test_slice_range() {
-    test_equivalence!("this is some string", |string: Slice<Range<usize>>| {
-        assert_eq!(string.slice(0..0), "");
-        assert_eq!(string.slice(0..4), "this");
-        assert_eq!(string.slice(5..7), "is");
-        assert_eq!(string.slice(8..12), "some");
-        assert_eq!(string.slice(13..19), "string");
-    });
-}
-
-impl<S: Data<String>> Slice<RangeFrom<usize>> for ImString<S> {
-    fn slice(&self, range: RangeFrom<usize>) -> Self {
-        self.slice(range)
-    }
-}
-
-#[test]
-fn test_slice_range_from() {
-    test_equivalence!("this is some string", |string: Slice<RangeFrom<usize>>| {
-        assert_eq!(string.slice(0..), "this is some string");
-        assert_eq!(string.slice(8..), "some string");
-        assert_eq!(string.slice(13..), "string");
-        assert_eq!(string.slice(19..), "");
-    });
-}
-
-impl<S: Data<String>> Slice<RangeTo<usize>> for ImString<S> {
-    fn slice(&self, range: RangeTo<usize>) -> Self {
-        self.slice(range)
-    }
-}
-
-#[test]
-fn test_slice_range_to() {
-    test_equivalence!("this is some string", |string: Slice<RangeTo<usize>>| {
-        assert_eq!(string.slice(..0), "");
-        assert_eq!(string.slice(..4), "this");
-        assert_eq!(string.slice(..7), "this is");
-        assert_eq!(string.slice(..12), "this is some");
-    });
-}
-
-impl<S: Data<String>> Slice<RangeFull> for ImString<S> {
-    fn slice(&self, range: RangeFull) -> Self {
-        self.slice(range)
-    }
-}
-
-#[test]
-fn test_slice_range_full() {
-    test_equivalence!("this is some string", |string: Slice<RangeFull>| {
-        assert_eq!(string.slice(..), "this is some string");
-    });
-
-    test_equivalence!("", |string: Slice<RangeFull>| {
-        assert_eq!(string.slice(..), "");
-    });
-
-    test_equivalence!("string", |string: Slice<RangeFull>| {
-        assert_eq!(string.slice(..), "string");
-    });
-}
-
-impl<S: Data<String>> InputTake for ImString<S> {
-    fn take(&self, count: usize) -> Self {
-        self.slice(..count)
+    fn input_len(&self) -> usize {
+        self.len()
     }
 
-    fn take_split(&self, count: usize) -> (Self, Self) {
-        (self.slice(count..), self.slice(..count))
+    fn take(&self, index: usize) -> Self {
+        self.slice(..index)
+    }
+
+    fn take_from(&self, index: usize) -> Self {
+        self.slice(index..)
+    }
+
+    fn take_split(&self, index: usize) -> (Self, Self) {
+        (self.slice(index..), self.slice(..index))
+    }
+
+    fn position<P>(&self, predicate: P) -> Option<usize>
+    where
+        P: Fn(Self::Item) -> bool,
+    {
+        self.as_str().find(predicate)
+    }
+
+    fn iter_elements(&self) -> Self::Iter {
+        self.chars()
+    }
+
+    fn iter_indices(&self) -> Self::IterIndices {
+        self.char_indices()
+    }
+
+    fn slice_index(&self, count: usize) -> Result<usize, Needed> {
+        let mut cnt = 0;
+        for (index, _) in self.char_indices() {
+            if cnt == count {
+                return Ok(index);
+            }
+            cnt += 1;
+        }
+        if cnt == count {
+            return Ok(self.len());
+        }
+        Err(Needed::Unknown)
     }
 }
 
 #[test]
 fn test_input_take() {
-    test_equivalence!("this is some string", |string: InputTake| {
+    test_equivalence!("this is some string", |string: Input| {
         assert_eq!(string.take(0), "");
         assert_eq!(string.take(4), "this");
         assert_eq!(string.take(19), "this is some string");
@@ -137,70 +107,32 @@ fn test_input_take() {
     });
 }
 
-impl<S: Data<String>> InputLength for ImString<S> {
-    fn input_len(&self) -> usize {
-        self.len()
-    }
-}
-
 #[test]
 fn test_input_length() {
-    test_equivalence!("this is some string", |string: InputLength| {
+    test_equivalence!("this is some string", |string: Input| {
         assert_eq!(string.input_len(), 19);
     });
 
-    test_equivalence!("", |string: InputLength| {
+    test_equivalence!("", |string: Input| {
         assert_eq!(string.input_len(), 0);
     });
 
-    test_equivalence!("string", |string: InputLength| {
+    test_equivalence!("string", |string: Input| {
         assert_eq!(string.input_len(), 6);
     });
 }
 
-impl<S: Data<String>> InputIter for ImString<S> {
-    type Item = char;
-    type Iter = CharIndices<S>;
-    type IterElem = Chars<S>;
-
-    fn iter_indices(&self) -> Self::Iter {
-        self.char_indices()
-    }
-
-    fn iter_elements(&self) -> Self::IterElem {
-        self.chars()
-    }
-
-    fn position<P: Fn(Self::Item) -> bool>(&self, predicate: P) -> Option<usize> {
-        self.as_str().find(predicate)
-    }
-
-    fn slice_index(&self, count: usize) -> Result<usize, Needed> {
-        let mut cnt = 0;
-        for (index, _) in self.char_indices() {
-            if cnt == count {
-                return Ok(index);
-            }
-            cnt += 1;
-        }
-        if cnt == count {
-            return Ok(self.len());
-        }
-        Err(Needed::Unknown)
-    }
-}
-
 #[test]
 fn test_input_iter() {
-    test_equivalence!("", |string: InputIter<Item = char>| {
-        assert_eq!(string.iter_indices().next(), None);
-        assert_eq!(string.iter_elements().next(), None);
+    test_equivalence!("", |string: Input| {
+        assert!(string.iter_indices().next().is_none());
+        assert!(string.iter_elements().next().is_none());
         assert_eq!(string.position(|_| true), None);
         assert_eq!(string.slice_index(0), Ok(0));
         assert_eq!(string.slice_index(1), Err(Needed::Unknown));
     });
 
-    test_equivalence!("über", |string: InputIter<Item = char>| {
+    test_equivalence!("über", |string: Input<Item = char>| {
         let indices: Vec<_> = string.iter_indices().collect();
         assert_eq!(indices, &[(0, 'ü'), (2, 'b'), (3, 'e'), (4, 'r')]);
         let chars: Vec<_> = string.iter_elements().collect();
@@ -221,67 +153,9 @@ fn test_input_iter() {
     });
 }
 
-impl<S: Data<String>> InputTakeAtPosition for ImString<S> {
-    type Item = char;
-
-    fn split_at_position<P, E: ParseError<Self>>(&self, predicate: P) -> IResult<Self, Self, E>
-    where
-        P: Fn(Self::Item) -> bool,
-    {
-        match self.as_str().find(predicate) {
-            Some(i) => Ok((self.slice(i..), self.slice(..i))),
-            None => Err(Err::Incomplete(Needed::new(1))),
-        }
-    }
-
-    fn split_at_position1<P, E: ParseError<Self>>(
-        &self,
-        predicate: P,
-        e: ErrorKind,
-    ) -> IResult<Self, Self, E>
-    where
-        P: Fn(Self::Item) -> bool,
-    {
-        match self.as_str().find(predicate) {
-            Some(0) => Err(Err::Error(E::from_error_kind(self.clone(), e))),
-            Some(i) => Ok((self.slice(i..), self.slice(..i))),
-            None => Err(Err::Incomplete(Needed::new(1))),
-        }
-    }
-
-    fn split_at_position_complete<P, E: ParseError<Self>>(
-        &self,
-        predicate: P,
-    ) -> IResult<Self, Self, E>
-    where
-        P: Fn(Self::Item) -> bool,
-    {
-        match self.as_str().find(predicate) {
-            Some(i) => Ok((self.slice(i..), self.slice(..i))),
-            None => Ok((self.slice(self.len()..), self.clone())),
-        }
-    }
-
-    fn split_at_position1_complete<P, E: ParseError<Self>>(
-        &self,
-        predicate: P,
-        e: ErrorKind,
-    ) -> IResult<Self, Self, E>
-    where
-        P: Fn(Self::Item) -> bool,
-    {
-        match self.as_str().find(predicate) {
-            Some(0) => Err(Err::Error(E::from_error_kind(self.clone(), e))),
-            Some(i) => Ok((self.slice(i..), self.slice(..i))),
-            None if self.is_empty() => Err(Err::Error(E::from_error_kind(self.clone(), e))),
-            None => Ok((self.slice(self.len()..), self.clone())),
-        }
-    }
-}
-
 #[test]
 fn test_input_take_at_position() {
-    test_equivalence!("", |string: InputTakeAtPosition<Item = char>| {
+    test_equivalence!("", |string: Input| {
         assert_eq!(
             string.split_at_position::<_, ()>(|_| true).err().unwrap(),
             Err::Incomplete(Needed::new(1))
@@ -308,7 +182,7 @@ fn test_input_take_at_position() {
         assert_eq!(result, Err::Error(()));
     });
 
-    test_equivalence!("some input", |string: InputTakeAtPosition<Item = char>| {
+    test_equivalence!("some input", |string: Input<Item = char>| {
         assert_eq!(
             string
                 .split_at_position::<_, ()>(|c| c == 'x')
@@ -391,13 +265,13 @@ fn test_offset() {
         assert_eq!(string.offset(&string), 0);
     });
 
-    test_equivalence!("hello", |string: Offset, Slice<Range<usize>>| {
+    test_equivalence!("hello", |string: Offset, Input| {
         assert_eq!(string.offset(&string), 0);
-        assert_eq!(string.offset(&string.slice(1..5)), 1);
-        assert_eq!(string.offset(&string.slice(2..5)), 2);
-        assert_eq!(string.offset(&string.slice(3..5)), 3);
-        assert_eq!(string.offset(&string.slice(4..5)), 4);
-        assert_eq!(string.offset(&string.slice(5..5)), 5);
+        assert_eq!(string.offset(&string.take_from(1)), 1);
+        assert_eq!(string.offset(&string.take_from(2)), 2);
+        assert_eq!(string.offset(&string.take_from(3)), 3);
+        assert_eq!(string.offset(&string.take_from(4)), 4);
+        assert_eq!(string.offset(&string.take_from(5)), 5);
     });
 }
 
